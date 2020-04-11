@@ -1,8 +1,11 @@
 """Monitor changes to patterns within files and expose those change events as generators"""
-import watch
-from regexutils import *
+import fsevents as fs
 from pathlib import Path
-from config import *
+from patternevents.config import *
+import re
+
+def match(pattern, text):
+    return re.finditer(pattern, text, re.MULTILINE)
 
 def changes(pattern, *abs_paths, yield_sames=False):
     """a generator for detecting changes to regex patterns
@@ -31,6 +34,9 @@ def changes(pattern, *abs_paths, yield_sames=False):
             -  `match_text (str)`: the text which was changed
             - `groups ([groups], {named_groups})` the groups from
             the regex match
+
+    Warning:
+        does not yield overlapping matches
     """
 
     def group(m):
@@ -41,7 +47,7 @@ def changes(pattern, *abs_paths, yield_sames=False):
         matches = match(pattern, p.read_text())
         cache_file(p).write_text('\n'.join([m.group(0) for m in matches]))
 
-    for updated in watch.writes(*abs_paths):
+    for updated in fs.writes(*abs_paths):
         # collect cached matches
         cached_groups = {m.group(0):group(m) for m in
                 match(pattern, cache_file(updated).read_text())}
@@ -74,3 +80,4 @@ def changes(pattern, *abs_paths, yield_sames=False):
         yield from changes
 
         cache_file(updated).write_text("\n".join(matches))
+
